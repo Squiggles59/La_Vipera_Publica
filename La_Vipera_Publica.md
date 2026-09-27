@@ -2,6 +2,44 @@
 
 ## Design Principles
 
+### Design Decision Documentation
+
+Where a design choice requires consideration between reasonable alternatives,
+the decision and its rationale should be recorded in this document.
+
+The purpose is not to document every implementation detail, but to preserve
+the reasoning behind choices that a future user, maintainer or contributor
+might reasonably question.
+
+A useful test is:
+
+> If we had to stop and think about it, somebody may eventually ask why we did it.
+
+### Platform Support
+
+La Vipera Publica is initially intended to support Ubuntu 22.04 LTS and
+Ubuntu 24.04 LTS.
+
+Development should avoid unnecessary distribution-specific behaviour so that
+La Vipera may also operate on other Linux distributions. However, operation
+on an untested distribution does not imply that the distribution is formally
+supported.
+
+A distinction is made between:
+
+- **Supported platforms** — platforms on which La Vipera is deliberately
+  tested and maintained.
+- **Reported compatible platforms** — platforms on which users have reported
+  successful operation but which are not part of the maintained test set.
+
+User reports of successful operation on other distributions are welcome and
+may be documented as reported compatibility.
+
+The bootstrap installer should require only Python 3 and its standard library.
+Its minimum Python version must be no newer than that provided by the oldest
+supported Ubuntu release unless there is a compelling reason otherwise.
+
+
 ### 1. Library Ownership and Configuration
 
 **La Vipera owns its workspace; it references the user's libraries.**
@@ -40,3 +78,42 @@ than temporary staging areas.
 **Principle:** discovery does not imply modification. La Vipera should adapt to
 the user's existing KiCad environment rather than require that environment to
 be reorganised around La Vipera.
+
+### 2. Filesystem Layout
+
+La Vipera separates user-visible working data from application configuration
+and installed program files.
+
+The default user workspace is:
+
+    ~/La_Vipera/
+    ├── workspace/
+    │   ├── incoming/
+    │   ├── archive/
+    │   └── backups/
+    └── libraries/
+        ├── La_Vipera.kicad_sym
+        ├── La_Vipera.pretty/
+        └── La_Vipera.3dshapes/
+
+Application configuration is stored separately:
+
+    ~/.config/la-vipera/
+
+The installed executable will reside in:
+
+    ~/.local/bin/
+
+The `libraries` directory contains genuine KiCad libraries that the user may
+wish to inspect, edit, back up or configure directly in KiCad. They are
+therefore deliberately kept in a visible location under the user's home
+directory rather than hidden beneath `~/.local/share`.
+
+The `workspace` directory contains La Vipera's operational material. Keeping
+it separate from `libraries` makes the distinction between permanent KiCad
+assets and La Vipera's housekeeping explicit.
+
+Configuration and executable files follow normal Linux per-user conventions
+because users do not ordinarily need to manipulate them directly.
+
+No existing user libraries are moved or reorganised by this layout.
