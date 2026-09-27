@@ -6,6 +6,7 @@ from pathlib import Path
 HOME = Path.home()
 
 LA_VIPERA = HOME / "La_Vipera"
+OWNERSHIP_MARKER = LA_VIPERA / ".la_vipera"
 
 WORKSPACE = LA_VIPERA / "workspace"
 INCOMING = WORKSPACE / "incoming"
@@ -39,10 +40,48 @@ def create_symbol_library(path):
     path.write_text(content, encoding="utf-8")
     print(f"Created: {path}")
 
+def prepare_workspace():
+    if LA_VIPERA.exists():
+        if not LA_VIPERA.is_dir():
+            print(f"ERROR: {LA_VIPERA} exists but is not a directory.")
+            return False
+
+        if not valid_ownership_marker():
+            print(f"ERROR: {LA_VIPERA} already exists but is not")
+            print("recognised as a La Vipera workspace.")
+            print()
+            print("No changes have been made.")
+            return False
+
+        print(f"Workspace: {LA_VIPERA}")
+        return True
+
+    LA_VIPERA.mkdir()
+    OWNERSHIP_MARKER.write_text("La Vipera Publica\n", encoding="utf-8")
+
+    print(f"Created: {LA_VIPERA}")
+    print(f"Created: {OWNERSHIP_MARKER}")
+    return True
+
+def valid_ownership_marker():
+    if not OWNERSHIP_MARKER.is_file():
+        return False
+
+    try:
+        content = OWNERSHIP_MARKER.read_text(encoding="utf-8").strip()
+    except OSError:
+        return False
+
+    return content == "La Vipera Publica"
 
 def main():
     print("La Vipera Publica installer")
     print("---------------------------")
+
+    if not prepare_workspace():
+        return
+
+    print()
 
     create_directory(INCOMING)
     create_directory(ARCHIVE)

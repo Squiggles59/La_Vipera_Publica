@@ -39,6 +39,30 @@ The bootstrap installer should require only Python 3 and its standard library.
 Its minimum Python version must be no newer than that provided by the oldest
 supported Ubuntu release unless there is a compelling reason otherwise.
 
+### Workspace Ownership
+
+La Vipera must not assume that an existing `~/La_Vipera` directory belongs
+to it merely because the directory name matches its default workspace name.
+
+A workspace created by La Vipera will contain an identifying marker:
+
+    ~/La_Vipera/.la_vipera
+
+If `~/La_Vipera` does not exist, the installer may create it and its ownership
+marker.
+
+If `~/La_Vipera` exists and contains the ownership marker, the installer may
+treat it as an existing La Vipera workspace. Existing files and directories
+must still be preserved.
+
+If `~/La_Vipera` exists without the ownership marker, the installer must stop
+without modifying the directory. The user must decide how the naming conflict
+is to be resolved.
+
+La Vipera must not automatically rename, replace, delete or adopt an
+unidentified existing directory.
+
+**Principle:** a matching pathname is not proof of ownership.
 
 ### 1. Library Ownership and Configuration
 
