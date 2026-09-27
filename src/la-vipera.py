@@ -11,19 +11,21 @@ from datetime import datetime
 # Configuration
 # ---------------------------------------------------------------------------
 
-IMPORT_DIR = Path.home() / "kicad_import"
-INCOMING_DIR = IMPORT_DIR / "incoming"
+LA_VIPERA_DIR = Path.home() / "La_Vipera"
 
-FOOTPRINT_DIR = Path.home() / "kicad_footprints" / "armadillo.pretty"
-MODEL_DIR = Path.home() / "kicad_3dmodels" / "custom.3dshapes"
+WORKSPACE_DIR = LA_VIPERA_DIR / "workspace"
+INCOMING_DIR = WORKSPACE_DIR / "incoming"
+ARCHIVE_DIR = WORKSPACE_DIR / "archive"
+BACKUP_DIR = WORKSPACE_DIR / "backups"
 
-MODEL_KICAD_PREFIX = "${MY_3DMODELS}/custom.3dshapes"
+LIBRARY_DIR = LA_VIPERA_DIR / "libraries"
 
-SYMBOL_DIR = Path.home() / "kicad_library"
+FOOTPRINT_DIR = LIBRARY_DIR / "La_Vipera.pretty"
+MODEL_DIR = LIBRARY_DIR / "La_Vipera.3dshapes"
+SYMBOL_DIR = LIBRARY_DIR
 
-ARCHIVE_DIR = IMPORT_DIR / "archive"
-BACKUP_DIR = IMPORT_DIR / "backups"
-
+FOOTPRINT_LIBRARY_NAME = "La_Vipera"
+MODEL_KICAD_PREFIX = str(MODEL_DIR)
 
 def find_zip_files():
     """Return ZIP files waiting in the incoming directory."""
@@ -253,7 +255,7 @@ def choose_footprint(contents):
 
 
 def ask_name(prompt, default):
-    """Ask for a production name with an editable default."""
+    """Ask for a destination name with an editable default."""
 
     while True:
 
@@ -330,7 +332,7 @@ def build_proposal(contents):
 
         proposal["symbol"] = symbol
         proposal["symbol_name"] = ask_name(
-            "Production symbol name",
+            "Destination symbol name",
             default_name
         )
 
@@ -346,23 +348,23 @@ def build_proposal(contents):
 
         proposal["footprint"] = footprint
         proposal["footprint_name"] = ask_name(
-            "Production footprint name",
+            "Destination footprint name",
             default_name
         )
 
-        production_path = (
+        destination_path = (
             FOOTPRINT_DIR
             / f"{proposal['footprint_name']}.kicad_mod"
         )
 
-        if production_path.exists():
+        if destination_path.exists():
             print()
-            print("Production footprint already exists:")
-            print(f"  {production_path}")
+            print("Destination footprint already exists:")
+            print(f"  {destination_path}")
             print()
 
             proposal["use_existing_footprint"] = ask_yes_no(
-                "Use existing production footprint?",
+                "Use existing destination footprint?",
                 default=True
             )
 
@@ -429,7 +431,7 @@ def build_proposal(contents):
             proposal["symbol_name"],
         ):
             print()
-            print("Production symbol already exists:")
+            print("Destination symbol already exists:")
             print(
                 f"  {proposal['symbol_library'].stem}:"
                 f"{proposal['symbol_name']}"
@@ -437,7 +439,7 @@ def build_proposal(contents):
             print()
 
             proposal["use_existing_symbol"] = ask_yes_no(
-                "Use existing production symbol?",
+                "Use existing destination symbol?",
                 default=True
             )
 
@@ -451,7 +453,7 @@ def build_proposal(contents):
                 )
 
                 expected_footprint = (
-                    f"armadillo:{proposal['footprint_name']}"
+                    f"{FOOTPRINT_LIBRARY_NAME}:{proposal['footprint_name']}"
                 )
 
                 if existing_footprint != expected_footprint:
@@ -465,7 +467,7 @@ def build_proposal(contents):
                     )
                     print(f"  {existing_footprint or '(none)'}")
                     print()
-                    print("Selected production footprint:")
+                    print("Selected destination footprint:")
                     print(f"  {expected_footprint}")
                     print()
                     print(
@@ -483,18 +485,18 @@ def build_proposal(contents):
     return proposal
 
 def find_symbol_libraries():
-    """Return top-level production symbol libraries."""
+    """Return top-level destination symbol libraries."""
     return sorted(SYMBOL_DIR.glob("*.kicad_sym"))
 
 
 def choose_symbol_library():
-    """Allow the user to choose a production symbol library."""
+    """Allow the user to choose a destination symbol library."""
 
     libraries = find_symbol_libraries()
 
     if not libraries:
         raise RuntimeError(
-            f"No production .kicad_sym libraries found in {SYMBOL_DIR}"
+            f"No destination .kicad_sym libraries found in {SYMBOL_DIR}"
         )
 
     print("Select destination symbol library:\n")
@@ -700,7 +702,7 @@ def merge_symbol_text(source_text, target_path):
 
 
 def prepare_symbol_text(text, old_name, new_name, footprint_name):
-    """Prepare a vendor symbol for production merging."""
+    """Prepare a vendor symbol for merging into the destination library."""
 
     pattern = (
         r'(\(symbol\s+")'
@@ -718,7 +720,7 @@ def prepare_symbol_text(text, old_name, new_name, footprint_name):
         raise RuntimeError("Could not identify the symbol declaration.")
 
     if footprint_name:
-        footprint_value = f"armadillo:{footprint_name}"
+        footprint_value = f"{FOOTPRINT_LIBRARY_NAME}:{footprint_name}"
 
         text, count = re.subn(
             r'(\(property\s+"Footprint"\s+")[^"]*(")',
@@ -744,7 +746,7 @@ def prepare_symbol_text(text, old_name, new_name, footprint_name):
 
 
 def prepare_symbol_from_zip(zip_path, proposal):
-    """Return prepared symbol text without touching production."""
+    """Return prepared symbol text without modifying the destination."""
 
     if (
         not proposal["symbol"]
@@ -766,7 +768,7 @@ def prepare_symbol_from_zip(zip_path, proposal):
 
 
 def display_proposal(proposal):
-    """Display proposed production changes."""
+    """Display proposed destination changes."""
 
     print()
     print("PROPOSED ACTIONS")
@@ -806,7 +808,7 @@ def display_proposal(proposal):
             else:
                 print(
                     "  Footprint property:"
-                    f" armadillo:{proposal['footprint_name']}"
+                    f" {FOOTPRINT_LIBRARY_NAME}:{proposal['footprint_name']}"
                 )
                 print()
 
@@ -863,7 +865,7 @@ def display_proposal(proposal):
     print("No changes have been made yet.")
 
 def destination_paths(proposal):
-    """Return production destinations used by the proposal."""
+    """Return destination paths used by the proposal."""
 
     footprint_path = None
     model_path = None
@@ -884,7 +886,7 @@ def destination_paths(proposal):
 
 
 def check_conflicts(zip_path, proposal):
-    """Return a list of production files that already exist."""
+    """Return a list of destination files that already exist."""
 
     conflicts = []
 
@@ -1044,7 +1046,7 @@ def perform_import(zip_path, proposal, prepared_symbol_text):
     footprint_text = None
     model_data = None
 
-    # Prepare everything from the ZIP before touching production.
+    # Prepare everything from the ZIP before modifying the destination.
     with zipfile.ZipFile(zip_path, "r") as archive:
 
         if proposal["footprint"]:
@@ -1236,8 +1238,9 @@ def inventory_zip(zip_path):
 def main():
 
     print()
-    print("KiCad Component Import")
+    print("La Vipera Publica")
     print("----------------------")
+    print("KiCad Component Import Utility")
 
     zip_files = find_zip_files()
 
@@ -1336,7 +1339,7 @@ def main():
         print("IMPORT STOPPED")
         print("--------------")
         print()
-        print("The following production file(s) already exist:")
+        print("The following destination file(s) already exist:")
         print()
 
         for path in conflicts:
@@ -1349,7 +1352,7 @@ def main():
 
     print()
     print("This will now write the selected symbol, footprint")
-    print("and/or 3D model to the production libraries.")
+    print("and/or 3D model to the destination libraries.")
     print("On complete success the source ZIP will be archived.")
     print()
 
@@ -1378,7 +1381,7 @@ def main():
         print(f"  {error}")
         print()
         print(
-            "If production changes had begun, the import "
+            "If destination changes had begun, the import "
             "transaction was rolled back."
         )
         return
