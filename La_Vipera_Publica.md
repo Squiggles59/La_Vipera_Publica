@@ -51,11 +51,11 @@ A workspace created by La Vipera will contain an identifying marker:
 If `~/La_Vipera` does not exist, the installer may create it and its ownership
 marker.
 
-If `~/La_Vipera` exists and contains the ownership marker, the installer may
-treat it as an existing La Vipera workspace. Existing files and directories
+If `~/La_Vipera` exists and contains a valid identifying marker, the installer
+may treat it as an existing La Vipera workspace. Existing files and directories
 must still be preserved.
 
-If `~/La_Vipera` exists without the ownership marker, the installer must stop
+If `~/La_Vipera` exists without a valid identifying marker, the installer must stop
 without modifying the directory. The user must decide how the naming conflict
 is to be resolved.
 
@@ -141,3 +141,70 @@ Configuration and executable files follow normal Linux per-user conventions
 because users do not ordinarily need to manipulate them directly.
 
 No existing user libraries are moved or reorganised by this layout.
+
+### 3. Release Packaging and Distribution
+
+Public releases of La Vipera should be distributed as deliberately prepared
+release archives rather than relying solely on GitHub's automatically generated
+source-code archives.
+
+A release ZIP should contain only the files required by an ordinary user to
+understand and install La Vipera, such as:
+
+- the installer;
+- the application;
+- documentation;
+- licence information;
+- icons or other required application resources.
+
+Development files and other repository material that are not useful to an
+ordinary user need not be included.
+
+The intended installation process should not require the user to understand
+Git or clone a repository. A typical user should be able to download the
+release ZIP, extract it and run the supplied installer.
+
+During development and testing, cloning the Git repository remains appropriate
+because it provides a convenient way to obtain and update development versions.
+
+The installer should normally install the application supplied within the
+release package rather than downloading additional application files from
+GitHub. This keeps the release package self-contained and makes its contents
+explicit and testable.
+
+**Principle:** we should know exactly what we are shipping.
+
+
+### 4. Open-Source Collaboration
+
+La Vipera Publica is intended to be an open-source project. Users should not
+be required to register merely to download or use the software.
+
+The project should instead encourage users and developers to establish a
+relationship with the project through the normal collaborative mechanisms
+provided by GitHub.
+
+Contributions may include:
+
+- bug reports and fixes;
+- support for additional vendor package formats;
+- improvements to existing functionality;
+- reports of successful operation with other Linux distributions or KiCad
+  versions;
+- documentation improvements;
+- proposed new features.
+
+Significant improvements are particularly encouraged to be contributed back
+to the project through issues, discussions or pull requests where practical.
+
+It is accepted that an open-source user may modify La Vipera privately without
+reporting or contributing those changes. The project should encourage
+collaboration rather than attempt to enforce it through download registration
+or other barriers.
+
+A permissive open-source licence is preferred so that users are free to study,
+use and improve La Vipera. The specific licence will be selected before the
+first public release.
+
+**Principle:** make contribution easy and welcome rather than making
+participation compulsory.
