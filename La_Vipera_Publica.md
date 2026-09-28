@@ -79,29 +79,59 @@ La Vipera will create and manage its own working environment, including:
 Existing user libraries remain under the user's control and will not be moved,
 renamed or reorganised merely to suit La Vipera.
 
-On first run, La Vipera should discover existing KiCad libraries where practical
-and allow the user to select which libraries are to be used as import
-destinations. These selections are stored as configuration paths.
+On first run, La Vipera should discover the user's existing KiCad symbol and
+footprint libraries where practical and allow the user to select which
+libraries are to be used as import destinations. These selections are stored
+as configuration paths.
 
-La Vipera will also provide valid default libraries of its own:
+Discovery is concerned only with user-defined libraries that are suitable
+destinations for components imported by La Vipera. La Vipera is not intended
+to catalogue or manage KiCad's standard symbol and footprint libraries.
+
+Where possible, user libraries should be discovered from the library tables
+associated with the selected KiCad configuration rather than by scanning the
+filesystem for files and directories that merely resemble KiCad libraries.
+Library-table entries may contain KiCad path variables; user-defined variables
+required to resolve those entries may be obtained from the corresponding
+KiCad configuration.
+
+A discovered library must resolve to an appropriate existing and writable
+symbol library or footprint library before it is offered as an import
+destination. Discovery itself must not alter the library or its KiCad
+configuration.
+
+La Vipera does not need to discover or select among the user's existing
+3D-model libraries. Imported 3D models are stored in La Vipera's own
+`La_Vipera.3dshapes` library. This provides a known, writable and predictable
+location without requiring La Vipera to understand or modify the user's
+existing 3D-model organisation.
+
+La Vipera will provide valid default libraries of its own:
 
 - `La_Vipera.kicad_sym`
 - `La_Vipera.pretty`
 - `La_Vipera.3dshapes`
 
-These may remain empty when the user chooses existing libraries, but provide:
+The default symbol and footprint libraries provide:
 
 - an immediately usable environment for a new installation;
 - a safe destination for testing uncertain vendor packages;
 - a known-good fallback if an existing library is unavailable or unsuitable;
 - a recovery path following configuration errors or other misadventures.
 
-The default La Vipera libraries are permanent, ordinary KiCad libraries rather
+The default symbol and footprint libraries may remain empty when the user
+chooses existing libraries as import destinations.
+
+The `La_Vipera.3dshapes` library has a different role: it is the normal
+destination for 3D models imported by La Vipera, irrespective of which
+footprint library the user selects.
+
+All default La Vipera libraries are permanent, ordinary KiCad libraries rather
 than temporary staging areas.
 
-**Principle:** discovery does not imply modification. La Vipera should adapt to
-the user's existing KiCad environment rather than require that environment to
-be reorganised around La Vipera.
+**Principle:** discovery does not imply modification. La Vipera should discover
+only what it needs and adapt to the user's existing KiCad environment rather
+than require that environment to be reorganised around La Vipera.
 
 ### 2. Filesystem Layout
 
@@ -208,3 +238,56 @@ first public release.
 
 **Principle:** make contribution easy and welcome rather than making
 participation compulsory.
+
+### 5. KiCad Environment Discovery
+
+KiCad environment discovery is performed by La Vipera at runtime rather than
+by the installer. This allows La Vipera to recognise changes to the user's
+KiCad environment, including installation of a new KiCad major version,
+without requiring La Vipera to be reinstalled.
+
+On the initially supported Ubuntu platforms, La Vipera determines the installed
+KiCad version from the system package database. The installed major version is
+then used to identify the corresponding per-user KiCad configuration directory,
+for example:
+
+- KiCad 9.x → `~/.config/kicad/9.0/`
+- KiCad 10.x → `~/.config/kicad/10.0/`
+
+Configuration directories from older KiCad installations may remain on the
+system and must not, by themselves, be treated as evidence that those KiCad
+versions are currently installed.
+
+A newly installed KiCad may not have a per-user configuration directory until
+KiCad has completed its first-run setup. La Vipera must recognise this as a
+valid state rather than an installation error. In this situation no existing
+user libraries are available for discovery and La Vipera's own default
+libraries remain available.
+
+For the selected KiCad configuration, La Vipera reads:
+
+- `kicad_common.json`
+- `sym-lib-table`
+- `fp-lib-table`
+
+User-defined path variables from `kicad_common.json` are used where necessary
+to resolve entries in the symbol and footprint library tables.
+
+La Vipera is interested only in libraries suitable as import destinations:
+
+- an existing writable `.kicad_sym` file for symbols;
+- an existing writable `.pretty` directory for footprints.
+
+Entries referring to KiCad's standard libraries, library tables or other
+objects that are not suitable import destinations are ignored. La Vipera does
+not need to resolve or catalogue KiCad's standard libraries.
+
+Discovery is read-only. It does not alter KiCad configuration, library tables,
+path variables or existing libraries.
+
+The user's selected import destinations are retained by La Vipera. Subsequent
+runtime discovery may detect changes to the KiCad environment, but should not
+silently replace a still-valid user selection.
+
+**Principle:** installation establishes La Vipera; runtime discovery establishes
+the KiCad environment in which La Vipera is currently operating.

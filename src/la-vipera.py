@@ -6,6 +6,9 @@ import zipfile
 import readline
 import shutil
 from datetime import datetime
+import json
+import os
+import subprocess
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -309,10 +312,16 @@ def build_proposal(contents):
         "use_existing_symbol": False,
         "footprint": None,
         "footprint_name": None,
+        "footprint_library": None,
+        "footprint_library_name": None,
         "use_existing_footprint": False,
         "model": None,
         "link_model": False,
     }
+
+    _, _, discovered_symbols, discovered_footprints = (
+        discover_kicad_libraries()
+    )
     print()
     print("Import choices")
     print("--------------")
@@ -344,6 +353,11 @@ def build_proposal(contents):
 
     if footprint:
 
+        (
+            proposal["footprint_library_name"],
+            proposal["footprint_library"],
+        ) = choose_footprint_library(discovered_footprints)
+
         default_name = Path(footprint["file"]).stem
 
         proposal["footprint"] = footprint
@@ -353,7 +367,7 @@ def build_proposal(contents):
         )
 
         destination_path = (
-            FOOTPRINT_DIR
+            proposal["footprint_library"]
             / f"{proposal['footprint_name']}.kicad_mod"
         )
 
@@ -424,7 +438,9 @@ def build_proposal(contents):
 
     if proposal["symbol"]:
         print()
-        proposal["symbol_library"] = choose_symbol_library()
+        proposal["symbol_library"] = choose_symbol_library(
+            discovered_symbols
+        )
 
         if symbol_exists_in_library(
             proposal["symbol_library"],
@@ -453,7 +469,8 @@ def build_proposal(contents):
                 )
 
                 expected_footprint = (
-                    f"{FOOTPRINT_LIBRARY_NAME}:{proposal['footprint_name']}"
+                    f"{proposal['footprint_library_name']}:"
+                    f"{proposal['footprint_name']}"
                 )
 
                 if existing_footprint != expected_footprint:
@@ -484,25 +501,199 @@ def build_proposal(contents):
 
     return proposal
 
-def find_symbol_libraries():
-    """Return top-level destination symbol libraries."""
-    return sorted(SYMBOL_DIR.glob("*.kicad_sym"))
+def find_kicad_config():
+    """
+    Determine the installed KiCad version on Ubuntu and return the
+    corresponding per-user configuration directory.
+    """
+    try:
+        result = subprocess.run(
+            ["dpkg-query", "-W", "-f=${Version}", "kicad"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        return None, None
+
+    package_version = result.stdout.strip()
+
+    match = re.match(r"(\d+)\.", package_version)
+    if not match:
+        return None, None
+
+    major_version = match.group(1)
+    config_version = f"{major_version}.0"
+    config_dir = Path.home() / ".config" / "kicad" / config_version
+
+    return package_version, config_dir
 
 
-def choose_symbol_library():
+def load_user_variables(config_dir):
+    """Return user-defined KiCad path variables."""
+    common_file = config_dir / "kicad_common.json"
+
+    with common_file.open("r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    return data.get("environment", {}).get("vars") or {}
+
+
+def resolve_library_uri(uri, variables):
+    """
+    Resolve a library URI using user-defined KiCad variables.
+
+    URIs using unknown variables are outside La Vipera's interest.
+    """
+    match = re.match(r'^\$\{([^}]+)\}(.*)$', uri)
+
+    if match:
+        variable = match.group(1)
+        remainder = match.group(2)
+
+        if variable not in variables:
+            return None
+
+        return Path(variables[variable] + remainder).expanduser()
+
+    path = Path(uri).expanduser()
+
+    if path.is_absolute():
+        return path
+
+    return None
+
+
+def read_library_table(table_file, variables):
+    """Return resolvable library entries from a KiCad library table."""
+    libraries = []
+
+    if not table_file.is_file():
+        return libraries
+
+    text = table_file.read_text(encoding="utf-8")
+
+    pattern = re.compile(
+        r'\(lib\s+'
+        r'\(name\s+"([^"]+)"\)'
+        r'.*?'
+        r'\(uri\s+"([^"]+)"\)',
+        re.DOTALL,
+    )
+
+    for name, uri in pattern.findall(text):
+        path = resolve_library_uri(uri, variables)
+
+        if path is None:
+            continue
+
+        libraries.append((name, uri, path))
+
+    return libraries
+
+
+def discover_kicad_libraries():
+    """
+    Discover existing user-defined KiCad symbol and footprint libraries
+    suitable for use as La Vipera import destinations.
+
+    Returns:
+        package_version, config_dir, symbol_libraries, footprint_libraries
+    """
+    package_version, config_dir = find_kicad_config()
+
+    if package_version is None:
+        return None, None, [], []
+
+    if not config_dir.is_dir():
+        return package_version, config_dir, [], []
+
+    variables = load_user_variables(config_dir)
+
+    symbols = []
+    for name, uri, path in read_library_table(
+        config_dir / "sym-lib-table", variables
+    ):
+        if (
+            path.is_file()
+            and path.suffix == ".kicad_sym"
+            and os.access(path, os.W_OK)
+        ):
+            symbols.append((name, path))
+
+    footprints = []
+    for name, uri, path in read_library_table(
+        config_dir / "fp-lib-table", variables
+    ):
+        if (
+            path.is_dir()
+            and path.suffix == ".pretty"
+            and os.access(path, os.W_OK | os.X_OK)
+        ):
+            footprints.append((name, path))
+
+    return package_version, config_dir, symbols, footprints
+
+
+def find_symbol_libraries(discovered_libraries=None):
+    """Return available destination symbol libraries."""
+
+    libraries = []
+
+    # La Vipera's own libraries are always valid destinations.
+    for path in sorted(SYMBOL_DIR.glob("*.kicad_sym")):
+        libraries.append((path.stem, path))
+
+    # Add suitable user libraries discovered from KiCad.
+    for name, path in discovered_libraries or []:
+        if path not in [library_path for _, library_path in libraries]:
+            libraries.append((name, path))
+
+    return libraries
+
+def choose_symbol_library(discovered_libraries=None):
     """Allow the user to choose a destination symbol library."""
 
-    libraries = find_symbol_libraries()
+    libraries = find_symbol_libraries(discovered_libraries)
 
     if not libraries:
-        raise RuntimeError(
-            f"No destination .kicad_sym libraries found in {SYMBOL_DIR}"
-        )
+        raise RuntimeError("No destination .kicad_sym libraries found.")
 
     print("Select destination symbol library:\n")
 
-    for number, library in enumerate(libraries, start=1):
-        print(f"  {number}) {library.name}")
+    for number, (name, path) in enumerate(libraries, start=1):
+        print(f"  {number}) {name}  ({path})")
+
+    print()
+
+    while True:
+        choice = input("Selection [1]: ").strip()
+
+        if choice == "":
+            return libraries[0][1]
+
+        try:
+            selection = int(choice)
+            if 1 <= selection <= len(libraries):
+                return libraries[selection - 1][1]
+        except ValueError:
+            pass
+
+        print("Invalid selection.")
+
+def choose_footprint_library(discovered_libraries):
+    """Allow the user to choose a destination footprint library."""
+
+    libraries = [(FOOTPRINT_LIBRARY_NAME, FOOTPRINT_DIR)]
+
+    for name, path in discovered_libraries:
+        if path not in [library_path for _, library_path in libraries]:
+            libraries.append((name, path))
+
+    print("Select destination footprint library:\n")
+
+    for number, (name, path) in enumerate(libraries, start=1):
+        print(f"  {number}) {name}  ({path})")
 
     print()
 
@@ -701,7 +892,13 @@ def merge_symbol_text(source_text, target_path):
     return len(existing_symbols), len(added_symbols), skipped
 
 
-def prepare_symbol_text(text, old_name, new_name, footprint_name):
+def prepare_symbol_text(
+    text,
+    old_name,
+    new_name,
+    footprint_name,
+    footprint_library_name,
+):
     """Prepare a vendor symbol for merging into the destination library."""
 
     pattern = (
@@ -720,8 +917,9 @@ def prepare_symbol_text(text, old_name, new_name, footprint_name):
         raise RuntimeError("Could not identify the symbol declaration.")
 
     if footprint_name:
-        footprint_value = f"{FOOTPRINT_LIBRARY_NAME}:{footprint_name}"
-
+        footprint_value = (
+            f"{footprint_library_name}:{footprint_name}"
+        )
         text, count = re.subn(
             r'(\(property\s+"Footprint"\s+")[^"]*(")',
             lambda m: m.group(1) + footprint_value + m.group(2),
@@ -764,8 +962,8 @@ def prepare_symbol_from_zip(zip_path, proposal):
         proposal["symbol"]["name"],
         proposal["symbol_name"],
         proposal["footprint_name"],
+        proposal["footprint_library_name"],
     )
-
 
 def display_proposal(proposal):
     """Display proposed destination changes."""
@@ -808,7 +1006,8 @@ def display_proposal(proposal):
             else:
                 print(
                     "  Footprint property:"
-                    f" {FOOTPRINT_LIBRARY_NAME}:{proposal['footprint_name']}"
+                    f" {proposal['footprint_library_name']}:"
+                    f"{proposal['footprint_name']}"
                 )
                 print()
 
@@ -822,7 +1021,7 @@ def display_proposal(proposal):
         source = Path(proposal["footprint"]["file"]).name
 
         destination = (
-            FOOTPRINT_DIR
+            proposal["footprint_library"]
             / f"{proposal['footprint_name']}.kicad_mod"
         )
 
@@ -872,7 +1071,7 @@ def destination_paths(proposal):
 
     if proposal["footprint"]:
         footprint_path = (
-            FOOTPRINT_DIR
+            proposal["footprint_library"]
             / f"{proposal['footprint_name']}.kicad_mod"
         )
 
@@ -1035,9 +1234,13 @@ def perform_import(zip_path, proposal, prepared_symbol_text):
 
     footprint_path, model_path = destination_paths(proposal)
 
-    FOOTPRINT_DIR.mkdir(parents=True, exist_ok=True)
-    MODEL_DIR.mkdir(parents=True, exist_ok=True)
+    if proposal["footprint"]:
+        proposal["footprint_library"].mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
+    MODEL_DIR.mkdir(parents=True, exist_ok=True)
     created_paths = []
     symbol_backup = None
     footprint_backup = None
@@ -1393,6 +1596,7 @@ def main():
         footprint_backup=footprint_backup,
         archive_path=archived_zip,
     )
+
     
 if __name__ == "__main__":
     main()
