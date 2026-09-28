@@ -1,11 +1,21 @@
 #!/usr/bin/env python3
 
 from pathlib import Path
-
+import shutil
 
 HOME = Path.home()
 
+
 LA_VIPERA = HOME / "La_Vipera"
+SCRIPT_DIR = Path(__file__).resolve().parent
+SOURCE_PROGRAM = SCRIPT_DIR / "src" / "la-vipera.py"
+
+APP_DIR = LA_VIPERA / "app"
+APP_PROGRAM = APP_DIR / "la-vipera.py"
+
+LOCAL_BIN = HOME / ".local" / "bin"
+LAUNCHER = LOCAL_BIN / "la-vipera"
+
 OWNERSHIP_MARKER = LA_VIPERA / ".la_vipera"
 
 WORKSPACE = LA_VIPERA / "workspace"
@@ -74,6 +84,36 @@ def valid_ownership_marker():
 
     return content == "La Vipera Publica"
 
+def install_program():
+    """Install the La Vipera application."""
+
+    if not SOURCE_PROGRAM.is_file():
+        print(f"ERROR: Application source not found: {SOURCE_PROGRAM}")
+        return False
+
+    create_directory(APP_DIR)
+
+    shutil.copy2(SOURCE_PROGRAM, APP_PROGRAM)
+    APP_PROGRAM.chmod(0o755)
+
+    print(f"Installed: {APP_PROGRAM}")
+    return True
+
+def install_launcher():
+    """Install the la-vipera command."""
+
+    create_directory(LOCAL_BIN)
+
+    content = f"""#!/bin/sh
+exec "{APP_PROGRAM}" "$@"
+"""
+
+    LAUNCHER.write_text(content, encoding="utf-8")
+    LAUNCHER.chmod(0o755)
+
+    print(f"Installed: {LAUNCHER}")
+
+
 def main():
     print("La Vipera Publica installer")
     print("---------------------------")
@@ -94,8 +134,22 @@ def main():
     create_symbol_library(SYMBOL_LIBRARY)
 
     print()
-    print("La Vipera skeleton ready.")
 
+    if not install_program():
+        return
+
+    install_launcher()
+
+    print()
+    print("La Vipera Publica installed.")
+    print()
+    print("To make the la-vipera command available in this terminal, run:")
+    print()
+    print("  source ~/.profile")
+    print()
+    print("Then run:")
+    print()
+    print("  la-vipera")
 
 if __name__ == "__main__":
     main()
