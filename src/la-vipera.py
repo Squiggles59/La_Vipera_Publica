@@ -591,6 +591,88 @@ def read_library_table(table_file, variables):
 
     return libraries
 
+def register_library(table_file, library_name, library_path):
+    """
+    Register one library in an existing KiCad global library table.
+
+    Existing entries are preserved. A conflicting nickname is reported
+    rather than replaced.
+    """
+    if not table_file.is_file():
+        print(f"Library table not found: {table_file}")
+        return False
+
+    content = table_file.read_text(encoding="utf-8")
+
+    names = re.findall(
+        r'\(lib\s+\(name\s+"([^"]+)"\)',
+        content,
+    )
+
+    if library_name in names:
+        expected_uri = str(library_path)
+        entries = re.findall(
+            r'\(lib\s+\(name\s+"([^"]+)"\).*?\(uri\s+"([^"]+)"\)',
+            content,
+            re.DOTALL,
+        )
+
+        if (library_name, expected_uri) in entries:
+            return True
+
+        print(f"Library nickname conflict: {library_name}")
+        print(f"Table: {table_file}")
+        return False
+
+    closing = content.rfind(")")
+    if closing == -1:
+        print(f"Invalid library table: {table_file}")
+        return False
+
+    entry = (
+        f'  (lib (name "{library_name}")'
+        f'(type "KiCad")'
+        f'(uri "{library_path}")'
+        f'(options "")(descr ""))\n'
+    )
+
+    updated = content[:closing].rstrip() + "\n" + entry + content[closing:]
+
+    backup = table_file.with_name(table_file.name + ".bak")
+    shutil.copy2(table_file, backup)
+    table_file.write_text(updated, encoding="utf-8")
+
+    print(f"Registered: {library_name} in {table_file.name}")
+    return True
+
+def register_la_vipera_libraries():
+    """Register La Vipera's symbol and footprint libraries with KiCad."""
+
+    package_version, config_dir = find_kicad_config()
+
+    if package_version is None:
+        print("KiCad installation not found; library registration skipped.")
+        return False
+
+    if not config_dir.is_dir():
+        print("KiCad has not yet created its user configuration.")
+        print("Library registration skipped.")
+        return False
+
+    symbol_ok = register_library(
+        config_dir / "sym-lib-table",
+        "La_Vipera",
+        SYMBOL_DIR / "La_Vipera.kicad_sym",
+    )
+
+    footprint_ok = register_library(
+        config_dir / "fp-lib-table",
+        "La_Vipera",
+        FOOTPRINT_DIR,
+    )
+
+    return symbol_ok and footprint_ok
+
 
 def discover_kicad_libraries():
     """
@@ -1444,6 +1526,8 @@ def main():
     print("La Vipera Publica")
     print("----------------------")
     print("KiCad Component Import Utility")
+
+    register_la_vipera_libraries()
 
     zip_files = find_zip_files()
 

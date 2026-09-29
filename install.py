@@ -22,6 +22,7 @@ WORKSPACE = LA_VIPERA / "workspace"
 INCOMING = WORKSPACE / "incoming"
 ARCHIVE = WORKSPACE / "archive"
 BACKUPS = WORKSPACE / "backups"
+QUARANTINE = WORKSPACE / "quarantine"
 
 LIBRARIES = LA_VIPERA / "libraries"
 SYMBOL_LIBRARY = LIBRARIES / "La_Vipera.kicad_sym"
@@ -126,6 +127,7 @@ def main():
     create_directory(INCOMING)
     create_directory(ARCHIVE)
     create_directory(BACKUPS)
+    create_directory(QUARANTINE)
 
     create_directory(LIBRARIES)
     create_directory(FOOTPRINT_LIBRARY)
